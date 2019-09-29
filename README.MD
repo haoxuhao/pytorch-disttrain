@@ -28,17 +28,20 @@ In this demo, I will run three processes on three different compute nodes, and e
 python multigpu_demo_v3.py \
     --init_method file://<absolute path to nfs file> \
     --rank 0 \
-    --world_size 3
+    --world_size 3\
+    --gpu_devices 0 1
 # node 2
 python multigpu_demo_v3.py \
     --init_method file://<absolute path to nfs file> \
     --rank 1 \
-    --world_size 3
+    --world_size 3\
+    --gpu_devices 0 1
 # node 3
 python multigpu_demo_v3.py \
     --init_method file://<absolute path to nfs file> \
     --rank 2 \
-    --world_size 3
+    --world_size 3 \
+    --gpu_devices 0 1
 ``` 
 ### GPU cluster on HPC
 
@@ -62,6 +65,28 @@ srun python multigpu_demo_v3.py \
     --gpu_devices 0 1
 ```
 2. Simply run `sbatch job.sh` on interactive node to submit a job.
+# Performance comparisons
+The code for the first three tests comes from [pytorch-multigpu](https://github.com/dnddnjs/pytorch-multigpu).
+### settings
+- gpu: p100;
+- gpu cluster: 2 gpus/node;
+- dataset: CIFAR10; batch size: 256; epoch: 1; iters: 196.
+### results
+| method | epoch time | batch time |
+| --- | --- | --- |
+| single gpu | 2:34 | 1.04s |
+| v1 | 2:17 | 0.70s |
+| v2 | 2:09 | 0.60s |
+| v3 | 2:01 | 0.58s |
+
+I didn't expect that the version(v2) of the two processes on a single machine would be slightly slower than the distributed version(v3) of the two nodes. Perhaps, it is due to the HPC. In short, no matter which way you use multiple GPUs, the speed will not increase by a multiple, because of the communication cost of the model synchronization. The only benefit you could get with multi-gpus is a bigger batch size.
+<!--
+batch size: 256, iters 196
+single gpu: Training time 0:03:24.695632; Epoch: [180/196]| loss: 1.464 | acc: 45.362 | batch time: 1.041s
+v1: 2 2gpu: Training time 0:02:17.989972; Epoch: [180/196]| loss: 2.040 | acc: 26.504 | batch time: 0.700s
+v2: 2 gpu 2 process: Training time 0:02:09.304087; Epoch: [180/196]| loss: 1.443 | acc: 46.797 | batch time: 0.599s
+v3: 2 gpu 2 nodes: Training time 0:02:01.753131; Epoch:[0][180/196]| loss: 1.447 | acc: 46.335 | batch time: 0.618s
+-->
 
 # Verify the models
 This script will verify whether the models from different processes are synchronized.
@@ -79,4 +104,9 @@ python compare_models.py final_model_rank_0.pth final_model_rank_1.pth
 # bn_out.running_mean
 # bn_out.running_var
 ```
-From the ouput of the model compare script, the only difference between models are **BN** layer, because that different minibatches' data does not synchronize. So this three way to facilitate multi gpus cannot improve the performance of the **BN**. If you want improve your **BN** performance, the [**sync bn**](https://github.com/vacancy/Synchronized-BatchNorm-PyTorch) may satisfy your demand.
+From the ouput above, the only difference between models is **BN** layer, because that different minibatches' data does not synchronize. So this three way to facilitate multi gpus cannot improve the performance of the **BN**. If you want to improve your **BN** performance, the [**sync bn**](https://github.com/vacancy/Synchronized-BatchNorm-PyTorch) may satisfy your demand.
+
+# Blogs
+The chinese blogs:
+- [Pytorch 多GPU训练-多计算节点并行-All you need](https://www.cnblogs.com/walter-xh/p/11613031.html)
+- [Pytorch 多GPU训练-单运算节点-All you need](https://www.cnblogs.com/walter-xh/p/11586507.html)
